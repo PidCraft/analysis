@@ -1,0 +1,122 @@
+{
+  "entities": {
+    "WatchedVideo": {
+      "title": "WatchedVideo",
+      "description": "Metadata induk video YouTube yang dipantau oleh pengguna terautentikasi.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID pengguna Firebase pemilik pantauan.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "videoId": {
+          "type": "string",
+          "description": "11 karakter ID video YouTube.",
+          "minLength": 11,
+          "maxLength": 11,
+          "pattern": "^[a-zA-Z0-9_\\-]{11}$"
+        },
+        "title": {
+          "type": "string",
+          "description": "Judul video YouTube.",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "channelName": {
+          "type": "string",
+          "description": "Nama channel YouTube pemilik video.",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "publishedAtIso": {
+          "type": "string",
+          "description": "Waktu publikasi video dalam format teks ISO.",
+          "minLength": 0,
+          "maxLength": 64
+        },
+        "latestViews": {
+          "type": "integer",
+          "description": "Jumlah total tayangan terbaru yang terverifikasi."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp server saat dokumen pertama kali dibuat."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp server saat dokumen terakhir diperbarui."
+        }
+      },
+      "required": [
+        "ownerId",
+        "videoId",
+        "title",
+        "channelName",
+        "publishedAtIso",
+        "latestViews",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ViewTick": {
+      "title": "ViewTick",
+      "description": "Satu titik sampel riwayat total tayangan video pada milidetik tertentu.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID pengguna Firebase pemilik sampel.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "videoId": {
+          "type": "string",
+          "description": "11 karakter ID video YouTube.",
+          "minLength": 11,
+          "maxLength": 11,
+          "pattern": "^[a-zA-Z0-9_\\-]{11}$"
+        },
+        "epochMs": {
+          "type": "integer",
+          "description": "Timestamp presisi milidetik Unix (NTP midpoint)."
+        },
+        "views": {
+          "type": "integer",
+          "description": "Total tayangan eksak pada titik waktu tersebut."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp server saat sampel disimpan ke Cloud Firestore."
+        }
+      },
+      "required": [
+        "ownerId",
+        "videoId",
+        "epochMs",
+        "views",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/videos/{docId}": {
+      "schema": {
+        "$ref": "#/entities/WatchedVideo"
+      },
+      "description": "Dokumen induk video yang dipantau per pengguna."
+    },
+    "/videos/{docId}/ticks/{tickId}": {
+      "schema": {
+        "$ref": "#/entities/ViewTick"
+      },
+      "description": "Subkoleksi titik riwayat total tayangan (append-only) milik dokumen induk video."
+    }
+  }
+}

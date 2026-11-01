@@ -1,0 +1,182 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Default-Deny Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Blueprint Validation Helper: WatchedVideo
+    function isValidWatchedVideo(data) {
+      return data.keys().hasAll([
+          'ownerId',
+          'videoId',
+          'title',
+          'channelName',
+          'publishedAtIso',
+          'latestViews',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'ownerId',
+          'videoId',
+          'title',
+          'channelName',
+          'publishedAtIso',
+          'latestViews',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.ownerId is string &&
+        data.ownerId.size() >= 1 &&
+        data.ownerId.size() <= 128 &&
+        data.ownerId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.ownerId == request.auth.uid &&
+        data.videoId is string &&
+        data.videoId.size() == 11 &&
+        data.videoId.matches('^[a-zA-Z0-9_\\-]{11}$') &&
+        data.title is string &&
+        data.title.size() >= 1 &&
+        data.title.size() <= 300 &&
+        data.channelName is string &&
+        data.channelName.size() >= 1 &&
+        data.channelName.size() <= 150 &&
+        data.publishedAtIso is string &&
+        data.publishedAtIso.size() <= 64 &&
+        data.latestViews is int &&
+        data.latestViews >= 0 &&
+        data.latestViews <= 1000000000000 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // Blueprint Validation Helper: ViewTick
+    function isValidViewTick(data) {
+      return data.keys().hasAll([
+          'ownerId',
+          'videoId',
+          'epochMs',
+          'views',
+          'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'ownerId',
+          'videoId',
+          'epochMs',
+          'views',
+          'createdAt'
+        ]) &&
+        data.ownerId is string &&
+        data.ownerId.size() >= 1 &&
+        data.ownerId.size() <= 128 &&
+        data.ownerId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.ownerId == request.auth.uid &&
+        data.videoId is string &&
+        data.videoId.size() == 11 &&
+        data.videoId.matches('^[a-zA-Z0-9_\\-]{11}$') &&
+        data.epochMs is int &&
+        data.epochMs >= 1000000000000 &&
+        data.epochMs <= 9999999999999 &&
+        data.views is int &&
+        data.views >= 0 &&
+        data.views <= 1000000000000 &&
+        data.createdAt is timestamp;
+    }
+
+    function isSyncMetadataAction() {
+      return existing().ownerId == request.auth.uid &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().videoId == existing().videoId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time;
+    }
+
+    // Master Resource: /videos/{docId}
+    match /videos/{docId} {
+      allow get: if isVerified() &&
+        isValidId(docId) && (
+          (resource == null && docId.matches('^' + request.auth.uid + '_[a-zA-Z0-9_\\-]{11}$')) ||
+          (resource != null && existing().ownerId == request.auth.uid)
+        );
+
+      allow list: if isVerified() && resource.data.ownerId == request.auth.uid;
+
+      allow create: if isVerified() &&
+        isValidId(docId) &&
+        isValidWatchedVideo(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if (
+        isVerified() &&
+        isValidId(docId) &&
+        isValidWatchedVideo(incoming()) && (
+          // Action: Sync Latest Video Metadata & View Counter
+          (isSyncMetadataAction() &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'title',
+              'channelName',
+              'publishedAtIso',
+              'latestViews',
+              'updatedAt'
+            ]))
+        )
+      );
+
+      allow delete: if isVerified() && isValidId(docId) && existing().ownerId == request.auth.uid;
+
+      // Subcollection: /videos/{docId}/ticks/{tickId}
+      match /ticks/{tickId} {
+        allow get: if isVerified() &&
+          isValidId(docId) &&
+          isValidId(tickId) &&
+          existing().ownerId == request.auth.uid &&
+          exists(/databases/$(database)/documents/videos/$(docId)) &&
+          get(/databases/$(database)/documents/videos/$(docId)).data.ownerId == request.auth.uid;
+
+        allow list: if isVerified() && resource.data.ownerId == request.auth.uid;
+
+        allow create: if isVerified() &&
+          isValidId(docId) &&
+          isValidId(tickId) &&
+          isValidViewTick(incoming()) &&
+          incoming().createdAt == request.time &&
+          exists(/databases/$(database)/documents/videos/$(docId)) &&
+          get(/databases/$(database)/documents/videos/$(docId)).data.ownerId == request.auth.uid &&
+          incoming().videoId == get(/databases/$(database)/documents/videos/$(docId)).data.videoId;
+
+        allow update: if false;
+
+        allow delete: if isVerified() &&
+          isValidId(docId) &&
+          isValidId(tickId) &&
+          existing().ownerId == request.auth.uid &&
+          exists(/databases/$(database)/documents/videos/$(docId)) &&
+          get(/databases/$(database)/documents/videos/$(docId)).data.ownerId == request.auth.uid;
+      }
+    }
+  }
+}

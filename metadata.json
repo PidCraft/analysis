@@ -1,0 +1,6 @@
+{
+  "name": "PantauView — Analisis Tayangan YouTube",
+  "description": "Aplikasi web analisis performa tayangan video YouTube secara real-time, kecepatan view, benchmark historis channel, dan diagnostik metadata.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
